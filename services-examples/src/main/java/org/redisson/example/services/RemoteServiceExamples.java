@@ -16,38 +16,62 @@
 package org.redisson.example.services;
 
 import org.redisson.Redisson;
+import org.redisson.api.RFuture;
+import org.redisson.api.RRemoteService;
 import org.redisson.api.RedissonClient;
+import org.redisson.api.annotation.RRemoteAsync;
 
 public class RemoteServiceExamples {
-    
-    public interface RemoteInterface {
-        
-        Long myMethod(Long value);
-        
-    }
-    
+
+    public interface RemoteInterface { Integer myMethod(Integer z); }
+
+    @RRemoteAsync(RemoteInterface.class)
+    public interface RemoteInterfaceAsync { RFuture<Integer> myMethod(Integer z); }
+
+
     public static class RemoteImpl implements RemoteInterface {
 
         public RemoteImpl() {
         }
-        
+
         @Override
-        public Long myMethod(Long value) {
-            return value*2;
+        public Integer myMethod(Integer z) {
+/*
+            try {
+                Thread.sleep(1);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+*/
+            return z*10;
         }
 
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
         // connects to 127.0.0.1:6379 by default
         RedissonClient server = Redisson.create();
         RedissonClient client = Redisson.create();
         try {
-            server.getRemoteService().register(RemoteInterface.class, new RemoteImpl());
+            RRemoteService serverRemoteService1 = server.getRemoteService();
 
-            RemoteInterface service = client.getRemoteService().get(RemoteInterface.class);
+            RemoteImpl someServiceImpl = new RemoteImpl();
+            serverRemoteService1.register(RemoteInterface.class, someServiceImpl,2);
+            Thread.sleep(100);
 
-            service.myMethod(21L);
+            RRemoteService clientRemoteService = client.getRemoteService();
+            //RemoteInterface service = clientRemoteService .get(RemoteInterface.class);
+            RemoteInterfaceAsync asyncService = clientRemoteService.get(RemoteInterfaceAsync.class);
+
+            asyncService.myMethod(10);
+            long start = System.currentTimeMillis();
+
+            for (int i=0;i<10000;i++ ) asyncService.myMethod(10);
+
+            long timeSpent = System.currentTimeMillis() - start;
+            System.out.println(" timeSpent " + timeSpent + " ms");
+
+            Thread.sleep(10000);
 
         } finally {
             client.shutdown();
@@ -55,5 +79,5 @@ public class RemoteServiceExamples {
         }
 
     }
-    
+
 }
